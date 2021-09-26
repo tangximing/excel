@@ -283,3 +283,62 @@ func (e *Excel) getMergeCell(startCol, endCol, row int, value string) (mergeCell
 	mergeCell[1] = value
 	return
 }
+
+func (e *Excel) GetFile() *excelize.File {
+	return e.ex
+}
+
+func (e *Excel) IsHeaderConsistent(responses ...interface{}) (isConsistent bool, err error) {
+	for _, importer := range e.importers {
+		isConsistent, err = importer.IsHeaderConsistent(responses...)
+		if err != nil || !isConsistent {
+			return
+		}
+	}
+
+	isConsistent = true
+	return
+}
+
+func (e *Excel) ScanRow(row []string, responses ...interface{}) (err error) {
+	importer := e.importers[_defaultSheetIndex]
+	return importer.ScanRow(row, responses...)
+}
+
+func (e *Excel) AsyncScanRows(rows [][]string, responses ...interface{}) chan *AsyncScanExRes {
+	importer := e.importers[_defaultSheetIndex]
+	return importer.AsyncScanRows(rows, responses...)
+}
+
+func (e *Excel) GetRowsWithoutHeader() ([][]string, error) {
+	var res [][]string
+	for _, sheetName := range e.activeSheetNames {
+		rows, err := e.GetSheetRowsWithoutHeader(sheetName)
+		if err != nil {
+			return nil, err
+		}
+
+		res = append(res, rows...)
+	}
+
+	return res, nil
+}
+
+func (e *Excel) GetSheetRowsWithoutHeader(sheet string) ([][]string, error) {
+	rowBeginIndex := e.importers[_defaultSheetIndex].getRowsBeginIndex()
+
+	var res [][]string
+	rows, err := e.ex.GetRows(sheet)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range rows {
+		if i < rowBeginIndex {
+			continue
+		}
+		res = append(res, rows[i])
+	}
+
+	return res, nil
+}

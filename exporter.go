@@ -129,8 +129,8 @@ func parseHeader(row interface{}) (h *header, err error) {
 	v := reflect.ValueOf(row).Elem()
 	for i := 0; i < reflect.Indirect(v).NumField(); i++ {
 		field := reflect.Indirect(v).Type().Field(i)
-		tag := field.Tag.Get("ex")
-		path := strings.Split(tag, "|")
+		tag := field.Tag.Get(_tagFlag)
+		path := strings.Split(tag, _tagPathSplitter)
 		paths = append(paths, path)
 	}
 	if len(paths) == 0 {

@@ -170,8 +170,14 @@ func (root *Importer) AsyncScanRows(rows [][]string, responses ...interface{}) c
 		_ = pool.Submit(func() {
 			defer wg.Done()
 
-			err := root.ScanRow(rows[index], responses...)
-			ch <- &AsyncScanExRes{Responses: responses, Err: err}
+			// we need to make a copy of the receiver for the row data
+			var respParams []interface{}
+			for _, resp := range responses {
+				respParams = append(respParams, reflect.New(reflect.Indirect(reflect.ValueOf(resp).Elem()).Type()).Interface())
+			}
+
+			err := root.ScanRow(rows[index], respParams...)
+			ch <- &AsyncScanExRes{Responses: respParams, Err: err}
 		})
 	}
 
@@ -194,12 +200,20 @@ func (root *Importer) IsHeaderConsistent(responses ...interface{}) (isConsistent
 	leafNodes := root.getLeafNodes()
 	lastRespLength := 0
 	for _, resp := range responses {
-		v := reflect.ValueOf(resp).Elem()
-		fieldNum := reflect.Indirect(v).NumField()
+		t := reflect.TypeOf(resp)
+		switch t.Kind() {
+		case reflect.Ptr:
+			t = t.Elem()
+		default:
+			err = errors.New("response is not ptr type")
+			return
+		}
+
+		fieldNum := t.NumField()
 		for i := 0; i < fieldNum; i++ {
-			field := reflect.Indirect(v).Type().Field(i)
-			tag := field.Tag.Get("ex")
-			path := strings.Split(tag, "|")
+			field := t.Field(i)
+			tag := field.Tag.Get(_tagFlag)
+			path := strings.Split(tag, _tagPathSplitter)
 
 			leafNode := leafNodes[lastRespLength+i]
 			if !reflect.DeepEqual(leafNode.path, path) {
